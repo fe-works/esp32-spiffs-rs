@@ -1,30 +1,33 @@
 use esp_idf_sys as _; // If using the `binstart` feature of `esp-idf-sys`, always keep this module imported
 use log::*;
 
+// SPIFFS関係と入出力
 use std::ffi::CString;
 use std::ptr;
 use std::fs;
 use std::io::{Read, Write};
 
-// use esp_idf_hal::delay::FreeRtos;
-
-// use esp_idf_hal::peripherals::Peripherals;
+//Bluetooth のライブラリ
+use esp32_nimble::BLEDevice;
+use futures::executor::block_on;
 
 fn main() -> anyhow::Result<()>{
+    //初期化
     esp_idf_sys::link_patches();
     esp_idf_svc::log::EspLogger::initialize_default();
 
+    //ファイルパスの指定
     let base_path =  CString::new("/spiffs")?;
-    // let peripherals = Peripherals::take().unwrap();
 
-    //それぞれの項目の意味は??
+    //領域確保の設定 (SPIFFS)
     let spiffs_conf = esp_idf_sys::esp_vfs_spiffs_conf_t {
-        base_path: base_path.as_ptr(), //CSString を使っていない．
+        base_path: base_path.as_ptr(),
         partition_label: ptr::null(),
         max_files: 5,
         format_if_mount_failed: true,
     };
 
+    //領域確保の実行
     unsafe {
         let esp_err_t = esp_idf_sys::esp_vfs_spiffs_register(&spiffs_conf);
 
@@ -45,9 +48,22 @@ fn main() -> anyhow::Result<()>{
 
     }
 
-    //fileの読み込み，データの書き込み
+    //ファイルのオープンと書き込み
     {
     let mut file = fs::OpenOptions::new().append(true).open("/spiffs/data.csv")?; //.expect("read file");
+
+    block_on(async {
+        let ble_device = BLEDevice::take();
+        let ble_scan = ble_device.get_scan();
+
+        ble_scan.active_scan(true)
+            .interval(100).window(99).on_result(|param|{
+                info!("Adverttised Device] {:?}", param)
+            });
+
+        ble_scan.start(5000).await.unwrap();
+        info!("scan end");
+    });
 
     //実際の処理ではループ．
     //loop {

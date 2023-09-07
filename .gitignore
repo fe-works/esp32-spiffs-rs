@@ -1,6 +1,6 @@
-/.vscode
-/.embuild
-/target
-/Cargo.lock
-/.github
-/tmp
+.vscode/
+.embuild/
+target/
+Cargo.lock
+.github/
+tmp/
