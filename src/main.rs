@@ -6,26 +6,42 @@ use std::ffi::CString;
 use std::ptr;
 use std::fs;
 use std::io::{Read, Write};
-//use async_fs;
+
+//Wifi
+mod wifi;
+use esp_idf_hal::peripherals::Peripherals;
 
 //Bluetooth のライブラリ
 use esp32_nimble::BLEDevice;
 use futures::executor::block_on;
 
+//sntp関連
+// use esp_idf_svc::sntp::*;
+// use esp_idf_sys::time_t;
+
+const WIFI_SSID: &str = "TM-WORKSTATION";
+const WIFI_PASS: &str = "temporarywifi";
+
 fn main() -> anyhow::Result<()>{
-    //初期化
+
+    //init
     esp_idf_sys::link_patches();
     esp_idf_svc::log::EspLogger::initialize_default();
 
-    //ファイルパスの指定
+    //folder path
     let base_path =  CString::new("/spiffs")?;
 
-    //Wifiの設定 (未実装)
-    let ssid = "hoge";
-    let pass = "huga";
+    //set wifi
+    let periphelals = Peripherals::take().unwrap();
+    let wifi_conf = wifi::wifi_init(periphelals.modem, WIFI_PASS, WIFI_SSID)?;
+
+    drop(wifi_conf);
 
     //時刻合わせ
-    let time = "hogehoge";
+    // let now_time: time_t;
+    // esp_idf_sys::time(time);
+    let time: &str = "00:00:00";
+
 
     //領域確保の設定 (SPIFFS)
     let spiffs_conf = esp_idf_sys::esp_vfs_spiffs_conf_t {
@@ -61,19 +77,19 @@ fn main() -> anyhow::Result<()>{
     //loop {
 
     //追記する場合はappend
-    let mut file = fs::OpenOptions::new().append(true).open("/spiffs/data.csv")?;
+    let mut file = fs::OpenOptions::new().write(true).open("/spiffs/data.csv")?;
     //let mut file = fs::OpenOptions::new().write(true).open("/spiffs/data.csv")?;
 
     block_on(async {
         let ble_device = BLEDevice::take();
         let ble_scan = ble_device.get_scan();
 
-        file.write_all(format!("[{}]",time).as_bytes()).unwrap();
+        file.write_all(format!("{}",time).as_bytes()).unwrap();
         info!("file opened");
 
         ble_scan.active_scan(true)
             .interval(100).window(99).on_result(move |param|{
-                file.write_all(format!("{}, ", param.addr()).as_bytes()).unwrap();
+                file.write_all(format!(", {}", param.addr()).as_bytes()).unwrap();
             });
 
         ble_scan.start(1000).await.unwrap();
@@ -107,3 +123,4 @@ fn main() -> anyhow::Result<()>{
     Ok(())
 
 }
+
