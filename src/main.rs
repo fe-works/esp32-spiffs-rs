@@ -6,6 +6,7 @@ use std::ffi::CString;
 use std::ptr;
 use std::fs;
 use std::io::{Read, Write};
+//use async_fs;
 
 //Bluetooth のライブラリ
 use esp32_nimble::BLEDevice;
@@ -18,6 +19,13 @@ fn main() -> anyhow::Result<()>{
 
     //ファイルパスの指定
     let base_path =  CString::new("/spiffs")?;
+
+    //Wifiの設定 (未実装)
+    let ssid = "hoge";
+    let pass = "huga";
+
+    //時刻合わせ
+    let time = "hogehoge";
 
     //領域確保の設定 (SPIFFS)
     let spiffs_conf = esp_idf_sys::esp_vfs_spiffs_conf_t {
@@ -48,45 +56,43 @@ fn main() -> anyhow::Result<()>{
 
     }
 
-    //ファイルのオープンと書き込み
-    {
-    let mut file = fs::OpenOptions::new().append(true).open("/spiffs/data.csv")?; //.expect("read file");
+
+    //実際の処理ではループ．
+    //loop {
+
+    //追記する場合はappend
+    let mut file = fs::OpenOptions::new().append(true).open("/spiffs/data.csv")?;
+    //let mut file = fs::OpenOptions::new().write(true).open("/spiffs/data.csv")?;
 
     block_on(async {
         let ble_device = BLEDevice::take();
         let ble_scan = ble_device.get_scan();
 
+        file.write_all(format!("[{}]",time).as_bytes()).unwrap();
+        info!("file opened");
+
         ble_scan.active_scan(true)
-            .interval(100).window(99).on_result(|param|{
-                info!("Adverttised Device] {:?}", param)
+            .interval(100).window(99).on_result(move |param|{
+                file.write_all(format!("{}, ", param.addr()).as_bytes()).unwrap();
             });
 
-        ble_scan.start(5000).await.unwrap();
-        info!("scan end");
+        ble_scan.start(1000).await.unwrap();
+        info!("Scan END");
     });
 
-    //実際の処理ではループ．
-    //loop {
 
-    //アドレス察知時: 書き込めるようにする．
-    //アドレス検知のコード．
-    let string = "example text";
-
-    //書き込みのコード
-    file.write_all(string.as_bytes())?;
-
-    //Wifi接続時: 書き込めるようにする．
+    //Wifi接続時: 書き込めるようにする
 
 
     //転送時の処理 (BLEでファイル転送)
-
+ 
 
     //FreeRtos::delay_ms(10000); //10sごとに実行
     //}
-    }
 
-    {
-    let mut file = fs::OpenOptions::new().read(true).open("/spiffs/data.csv")?; 
+
+    { //Roopしないときの動作確認用 (中身の表示)
+    let mut file = fs::OpenOptions::new().read(true).open("/spiffs/data.csv")?;
     //動作確認時のおまじない
     let mut check_contents = String::new();
     file.read_to_string(&mut check_contents)?;
